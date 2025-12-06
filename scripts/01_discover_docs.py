@@ -106,10 +106,19 @@ class DocumentationCrawler:
             if '/documentation/' in identifier:
                 parts = identifier.split('/documentation/', 1)
                 if len(parts) == 2:
-                    framework = parts[0].lower()
                     path = parts[1]
-                    # Return framework/path (e.g., foundation/NSString)
-                    identifier = f"{framework}/{path}"
+                    # Path often starts with framework name in CamelCase
+                    # e.g., "Foundation/NSString" or "VideoToolbox/VTSession..."
+                    # Just use the path directly (lowercase first segment is the framework)
+                    if '/' in path:
+                        # Convert first segment to lowercase to get framework
+                        path_parts = path.split('/', 1)
+                        framework = path_parts[0].lower()
+                        rest = path_parts[1]
+                        identifier = f"{framework}/{rest}"
+                    else:
+                        # Single segment, just lowercase it
+                        identifier = path.lower()
 
         # Remove leading /documentation/ if present
         if identifier.startswith('/documentation/'):
@@ -240,11 +249,13 @@ class DocumentationCrawler:
                     tasks = [self.crawl_page(session, doc_path) for doc_path in batch]
                     results = await asyncio.gather(*tasks)
 
-                    # Add new discovered URLs
+                    # Add new discovered URLs (only from current framework)
                     for new_refs in results:
                         for ref in new_refs:
-                            if ref not in self.discovered_urls:
-                                self.discovered_urls.add(ref)
+                            # Only add URLs that belong to current framework
+                            if ref.startswith(f"{framework}/") or ref == framework:
+                                if ref not in self.discovered_urls:
+                                    self.discovered_urls.add(ref)
 
                     # Save state periodically
                     if i % 50 == 0:
